@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const invoiceRoutes = require("./routes/invoiceRoutes");
 const express = require("express");
 const connectDB = require("./config/db");
 
@@ -9,6 +10,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(express.json());
+app.use("/", invoiceRoutes);
 
 // Test route
 app.get("/", (req, res) => {
