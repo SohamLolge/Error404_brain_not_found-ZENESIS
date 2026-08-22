@@ -17,6 +17,95 @@ def clean_number(value):
         return None
 
 
+def validate_invoice(data):
+    """
+    Perform basic invoice validation.
+
+    Required fields:
+    vendor
+    invoiceNumber
+    date
+    amount
+
+    GST is optional because not every invoice
+    necessarily contains GST.
+    """
+
+    errors = []
+
+    # --------------------------------------------------
+    # Required field checks
+    # --------------------------------------------------
+
+    if not data.get("vendor"):
+        errors.append("Missing vendor")
+
+    if not data.get("invoiceNumber"):
+        errors.append("Missing invoice number")
+
+    if not data.get("date"):
+        errors.append("Missing date")
+
+    if data.get("amount") is None:
+        errors.append("Missing total amount")
+
+    # --------------------------------------------------
+    # Amount validation
+    # --------------------------------------------------
+
+    amount = data.get("amount")
+
+    if amount is not None:
+
+        if not isinstance(amount, (int, float)):
+            errors.append("Amount is not a valid number")
+
+        elif amount <= 0:
+            errors.append("Amount must be greater than zero")
+
+    # --------------------------------------------------
+    # GST validation
+    # --------------------------------------------------
+
+    gst = data.get("gst")
+
+    if gst is not None:
+
+        if not isinstance(gst, (int, float)):
+            errors.append("GST is not a valid number")
+
+        elif gst < 0:
+            errors.append("GST cannot be negative")
+
+    # --------------------------------------------------
+    # Date validation
+    # --------------------------------------------------
+
+    date_value = data.get("date")
+
+    if date_value:
+
+        try:
+            datetime.strptime(
+                date_value,
+                "%Y-%m-%d"
+            )
+
+        except ValueError:
+            errors.append(
+                "Date format is invalid"
+            )
+
+    # --------------------------------------------------
+    # Validation result
+    # --------------------------------------------------
+
+    return {
+        "isValid": len(errors) == 0,
+        "errors": errors
+    }
+
+
 def extract_invoice_data(text):
     """
     Extract structured invoice information from OCR text.
@@ -29,6 +118,7 @@ def extract_invoice_data(text):
         gst
         category
         missingFields
+        validation
     """
 
     data = {
@@ -38,7 +128,11 @@ def extract_invoice_data(text):
         "amount": None,
         "gst": None,
         "category": None,
-        "missingFields": []
+        "missingFields": [],
+        "validation": {
+            "isValid": False,
+            "errors": []
+        }
     }
 
     # ==================================================
@@ -46,6 +140,15 @@ def extract_invoice_data(text):
     # ==================================================
 
     if not text:
+        data["missingFields"] = [
+            "vendor",
+            "invoiceNumber",
+            "date",
+            "amount"
+        ]
+
+        data["validation"] = validate_invoice(data)
+
         return data
 
     text = text.replace("\r", "\n")
@@ -56,7 +159,6 @@ def extract_invoice_data(text):
 
     invoice_patterns = [
 
-        # Examples:
         # Invoice #: (123456)
         # Invoice #: INV-1023
         # Invoice No: INV-1023
@@ -80,7 +182,6 @@ def extract_invoice_data(text):
 
             candidate = invoice_match.group(1).strip()
 
-            # Ignore obvious OCR mistakes
             invalid_values = {
                 "on",
                 "no",
@@ -165,14 +266,6 @@ def extract_invoice_data(text):
 
     gst_values = []
 
-    # Handles:
-    #
-    # GST: 4410
-    # GST 4410
-    # CGST: 2205
-    # SGST: 2205
-    # IGST: 4410
-
     gst_matches = re.findall(
 
         r"\b(?:GST|IGST|CGST|SGST)"
@@ -194,7 +287,6 @@ def extract_invoice_data(text):
             gst_values.append(number)
 
     if gst_values:
-
         data["gst"] = sum(gst_values)
 
     # ==================================================
@@ -203,35 +295,30 @@ def extract_invoice_data(text):
 
     amount_patterns = [
 
-        # Grand Total
         r"(?:grand\s*total)"
         r"\s*[:\-]?\s*"
         r"(?:₹|Rs\.?|INR)?"
         r"\s*"
         r"(\d+(?:,\d{3})*(?:\.\d+)?)",
 
-        # Total Amount
         r"(?:total\s*amount)"
         r"\s*[:\-]?\s*"
         r"(?:₹|Rs\.?|INR)?"
         r"\s*"
         r"(\d+(?:,\d{3})*(?:\.\d+)?)",
 
-        # Amount Payable
         r"(?:amount\s*payable)"
         r"\s*[:\-]?\s*"
         r"(?:₹|Rs\.?|INR)?"
         r"\s*"
         r"(\d+(?:,\d{3})*(?:\.\d+)?)",
 
-        # Net Amount
         r"(?:net\s*amount)"
         r"\s*[:\-]?\s*"
         r"(?:₹|Rs\.?|INR)?"
         r"\s*"
         r"(\d+(?:,\d{3})*(?:\.\d+)?)",
 
-        # Total
         r"(?:total)"
         r"\s*[:\-]?\s*"
         r"(?:₹|Rs\.?|INR)?"
@@ -288,12 +375,8 @@ def extract_invoice_data(text):
             line
         ).strip().lower()
 
-        # Skip common invoice headings
-
         if normalized in ignored_vendor_lines:
             continue
-
-        # Skip invoice-number lines
 
         if re.search(
             r"invoice\s*(no|number|#)",
@@ -302,8 +385,6 @@ def extract_invoice_data(text):
         ):
             continue
 
-        # Skip date lines
-
         if re.search(
             r"\bdate\b",
             line,
@@ -311,12 +392,8 @@ def extract_invoice_data(text):
         ):
             continue
 
-        # Skip obvious placeholder lines
-
         if "[" in line and "]" in line:
             continue
-
-        # Skip phone/address lines
 
         if re.search(
             r"\b(phone|fax|website|email|address)\b",
@@ -408,6 +485,14 @@ def extract_invoice_data(text):
                 field
             )
 
+    # ==================================================
+    # VALIDATION
+    # ==================================================
+
+    data["validation"] = validate_invoice(
+        data
+    )
+
     return data
 
 
@@ -429,31 +514,33 @@ if __name__ == "__main__":
     )
 
     # --------------------------------------------------
-    # INVOICE IMAGE
+    # EXISTING INVOICE
     # --------------------------------------------------
 
     image_path = (
-    r"C:\Users\atharv gorule\Downloads\invoice.png"
-)
-    # IMPORTANT:
-    # If your Windows username is "atharv gorule"
-    # instead of "atharav gorule", change the path above.
+        r"C:\Users\atharv gorule\Downloads\invoice.png"
+    )
 
     # --------------------------------------------------
     # OCR
     # --------------------------------------------------
 
-    image = Image.open(image_path)
+    image = Image.open(
+        image_path
+    )
 
     text = pytesseract.image_to_string(
         image
     )
 
-    print("\n----- OCR OUTPUT -----")
+    print()
+    print("================================")
+    print("        OCR OUTPUT")
+    print("================================")
 
     print(text)
 
-    print("----------------------")
+    print("================================")
 
     # --------------------------------------------------
     # EXTRACTION
@@ -464,10 +551,13 @@ if __name__ == "__main__":
     )
 
     # --------------------------------------------------
-    # JSON
+    # STRUCTURED JSON
     # --------------------------------------------------
 
-    print("\n----- STRUCTURED JSON -----")
+    print()
+    print("================================")
+    print("       STRUCTURED JSON")
+    print("================================")
 
     print(
         json.dumps(
@@ -476,4 +566,4 @@ if __name__ == "__main__":
         )
     )
 
-    print("---------------------------")
+    print("================================")
