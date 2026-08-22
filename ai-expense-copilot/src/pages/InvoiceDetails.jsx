@@ -71,7 +71,6 @@ function InvoiceDetails() {
 
   return (
     <div className="page">
-
       {/* PAGE HEADER */}
       <div className="page-header">
         <div>
@@ -87,7 +86,6 @@ function InvoiceDetails() {
       </div>
 
       <div className="invoice-details-grid">
-
         {/* INVOICE INFORMATION */}
         <section className="details-card">
           <div className="card-header">
@@ -104,7 +102,6 @@ function InvoiceDetails() {
           </div>
 
           <div className="details-list">
-
             <div className="detail-row">
               <span>Invoice Number</span>
               <strong>{invoice.invoiceNumber}</strong>
@@ -129,13 +126,11 @@ function InvoiceDetails() {
               <span>Total Amount</span>
               <strong>{invoice.amount}</strong>
             </div>
-
           </div>
         </section>
 
         {/* AMOUNT BREAKDOWN */}
         <section className="details-card">
-
           <div className="card-header">
             <div>
               <h2>Amount Breakdown</h2>
@@ -144,7 +139,6 @@ function InvoiceDetails() {
           </div>
 
           <div className="details-list">
-
             <div className="detail-row">
               <span>Subtotal</span>
               <strong>{invoice.subtotal}</strong>
@@ -159,13 +153,11 @@ function InvoiceDetails() {
               <span>Total</span>
               <strong>{invoice.amount}</strong>
             </div>
-
           </div>
         </section>
 
         {/* VALIDATION */}
         <section className="details-card">
-
           <div className="card-header">
             <div>
               <h2>Validation</h2>
@@ -178,9 +170,9 @@ function InvoiceDetails() {
           </div>
 
           <div className="validation-list">
-
             <div className="validation-item">
               <span>✓</span>
+
               <div>
                 <strong>Vendor information</strong>
                 <p>
@@ -191,6 +183,7 @@ function InvoiceDetails() {
 
             <div className="validation-item">
               <span>✓</span>
+
               <div>
                 <strong>Invoice number</strong>
                 <p>
@@ -201,6 +194,7 @@ function InvoiceDetails() {
 
             <div className="validation-item">
               <span>✓</span>
+
               <div>
                 <strong>Amount</strong>
                 <p>
@@ -211,6 +205,7 @@ function InvoiceDetails() {
 
             <div className="validation-item">
               <span>✓</span>
+
               <div>
                 <strong>Duplicate check</strong>
                 <p>
@@ -218,13 +213,11 @@ function InvoiceDetails() {
                 </p>
               </div>
             </div>
-
           </div>
         </section>
 
         {/* APPROVAL */}
         <section className="details-card">
-
           <div className="card-header">
             <div>
               <h2>Approval</h2>
@@ -233,11 +226,8 @@ function InvoiceDetails() {
           </div>
 
           <div className="approval-box">
-
             <div
-              className={`large-status ${getStatusClass(
-                invoice.status
-              )}`}
+              className={`large-status ${getStatusClass(invoice.status)}`}
             >
               {invoice.status}
             </div>
@@ -259,11 +249,9 @@ function InvoiceDetails() {
                 This invoice has been rejected and requires review.
               </p>
             )}
-
           </div>
 
           <div className="approval-actions">
-
             {invoice.status === "Pending" && (
               <>
                 <button className="approve-button">
@@ -282,11 +270,8 @@ function InvoiceDetails() {
             >
               View All Invoices
             </Link>
-
           </div>
-
         </section>
-
       </div>
     </div>
   );
