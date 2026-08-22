@@ -1,4 +1,5 @@
 const Invoice = require("../models/Invoice");
+const Approval = require("../models/Approval");
 
 const createInvoice = async (req, res) => {
   try {
@@ -76,7 +77,7 @@ const getInvoiceById = async (req, res) => {
 
 const updateInvoiceStatus = async (req, res) => {
   try {
-    const { status, comment } = req.body;
+    const { status, comment, approver } = req.body;
 
     if (!["Approved", "Rejected"].includes(status)) {
       return res.status(400).json({
@@ -96,10 +97,17 @@ const updateInvoiceStatus = async (req, res) => {
 
     await invoice.save();
 
+    const approval = await Approval.create({
+      invoiceId: invoice._id,
+      approver: approver || "Admin",
+      status,
+      comment: comment || "",
+    });
+
     res.status(200).json({
       message: `Invoice ${status.toLowerCase()} successfully`,
       invoice,
-      comment: comment || null,
+      approval,
     });
   } catch (error) {
     console.error("Update invoice status error:", error.message);
