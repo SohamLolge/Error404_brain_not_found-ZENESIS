@@ -104,7 +104,9 @@ function InvoiceDetails() {
             </div>
 
             <span
-              className={`status-badge ${getStatusClass(invoice.status)}`}
+              className={
+                "status-badge " + getStatusClass(invoice.status)
+              }
             >
               {invoice.status}
             </span>
@@ -250,7 +252,9 @@ function InvoiceDetails() {
           <div className="approval-box">
 
             <div
-              className={`large-status ${getStatusClass(invoice.status)}`}
+              className={
+                "large-status " + getStatusClass(invoice.status)
+              }
             >
               {invoice.status}
             </div>
@@ -292,7 +296,6 @@ function InvoiceDetails() {
                 </button>
               </>
             )}
-
 
             <Link
               to="/invoices"
