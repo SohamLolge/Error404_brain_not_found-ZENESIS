@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from PIL import Image
 import pytesseract
 import io
+import fitz
 
 from invoice_parser import extract_invoice_data
 
@@ -13,7 +14,7 @@ from invoice_parser import extract_invoice_data
 app = FastAPI(
     title="AI Expense Copilot - Invoice AI Service",
     description="OCR and intelligent invoice processing service",
-    version="1.0.0"
+    version="1.1.0"
 )
 
 
@@ -33,9 +34,81 @@ pytesseract.pytesseract.tesseract_cmd = (
 @app.get("/")
 def root():
     return {
-        "service": "AI Expense Copilot - Invoice AI",
+        "service": "AI Expense Copilot - Invoice AI Service",
         "status": "running"
     }
+
+
+# ======================================================
+# OCR IMAGE
+# ======================================================
+
+def ocr_image(image):
+    """Run Tesseract OCR on a PIL image."""
+
+    return pytesseract.image_to_string(
+        image
+    )
+
+
+# ======================================================
+# OCR PDF
+# ======================================================
+
+def ocr_pdf(contents):
+    """
+    Convert each PDF page into an image
+    and run OCR on every page.
+    """
+
+    try:
+
+        pdf = fitz.open(
+            stream=contents,
+            filetype="pdf"
+        )
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid PDF file: {str(error)}"
+        )
+
+    all_text = []
+
+    try:
+
+        for page in pdf:
+
+            # Render PDF page at good OCR resolution
+            pixmap = page.get_pixmap(
+                matrix=fitz.Matrix(2, 2)
+            )
+
+            image_bytes = pixmap.tobytes(
+                "png"
+            )
+
+            image = Image.open(
+                io.BytesIO(image_bytes)
+            )
+
+            page_text = ocr_image(
+                image
+            )
+
+            all_text.append(
+                page_text
+            )
+
+    finally:
+
+        pdf.close()
+
+    return "\n\n".join(
+        all_text
+    )
 
 
 # ======================================================
@@ -47,88 +120,103 @@ async def process_invoice(
     file: UploadFile = File(...)
 ):
     """
-    Receive an invoice image and return
-    structured invoice information.
-    """
+    Process an invoice image or PDF.
 
-    # --------------------------------------------------
-    # Validate file type
-    # --------------------------------------------------
+    Supported:
+    PNG
+    JPG
+    JPEG
+    WEBP
+    PDF
+    """
 
     allowed_types = [
         "image/png",
         "image/jpeg",
         "image/jpg",
-        "image/webp"
+        "image/webp",
+        "application/pdf"
     ]
 
     if file.content_type not in allowed_types:
+
         raise HTTPException(
             status_code=400,
-            detail="Only PNG, JPG, JPEG and WEBP images are supported."
+            detail=(
+                "Only PNG, JPG, JPEG, WEBP "
+                "and PDF files are supported."
+            )
         )
-
-    # --------------------------------------------------
-    # Read uploaded file
-    # --------------------------------------------------
 
     contents = await file.read()
 
     if not contents:
+
         raise HTTPException(
             status_code=400,
             detail="Uploaded file is empty."
         )
 
-    # --------------------------------------------------
-    # Convert bytes to image
-    # --------------------------------------------------
+    # ==================================================
+    # PDF
+    # ==================================================
 
-    try:
+    if file.content_type == "application/pdf":
 
-        image = Image.open(
-            io.BytesIO(contents)
+        text = ocr_pdf(
+            contents
         )
 
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail="Uploaded file is not a valid image."
-        )
+    # ==================================================
+    # IMAGE
+    # ==================================================
 
-    # --------------------------------------------------
-    # OCR
-    # --------------------------------------------------
+    else:
 
-    try:
+        try:
 
-        text = pytesseract.image_to_string(
-            image
-        )
+            image = Image.open(
+                io.BytesIO(contents)
+            )
 
-    except Exception as error:
+        except Exception:
 
-        raise HTTPException(
-            status_code=500,
-            detail=f"OCR processing failed: {str(error)}"
-        )
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded file is not a valid image."
+            )
 
-    # --------------------------------------------------
-    # Extract invoice data
-    # --------------------------------------------------
+        try:
+
+            text = ocr_image(
+                image
+            )
+
+        except Exception as error:
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"OCR processing failed: {str(error)}"
+                )
+            )
+
+    # ==================================================
+    # EXTRACT STRUCTURED DATA
+    # ==================================================
 
     result = extract_invoice_data(
         text
     )
 
-    # --------------------------------------------------
-    # Add OCR text for debugging
-    # --------------------------------------------------
+    # ==================================================
+    # OCR TEXT
+    # ==================================================
 
     result["ocrText"] = text
 
-    # --------------------------------------------------
-    # Return structured response
-    # --------------------------------------------------
+    # ==================================================
+    # RETURN RESPONSE
+    # ==================================================
 
     return result

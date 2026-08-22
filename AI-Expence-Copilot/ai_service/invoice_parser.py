@@ -3,6 +3,10 @@ import json
 from datetime import datetime
 
 
+# ======================================================
+# NUMBER CLEANING
+# ======================================================
+
 def clean_number(value):
     """Convert an OCR-extracted number into a float."""
 
@@ -17,24 +21,29 @@ def clean_number(value):
         return None
 
 
+# ======================================================
+# VALIDATION
+# ======================================================
+
 def validate_invoice(data):
     """
     Perform basic invoice validation.
 
-    Required fields:
-    vendor
-    invoiceNumber
-    date
-    amount
+    Required:
+        vendor
+        invoiceNumber
+        date
+        amount
 
-    GST is optional because not every invoice
-    necessarily contains GST.
+    Optional:
+        gst
+        category
     """
 
     errors = []
 
     # --------------------------------------------------
-    # Required field checks
+    # Required fields
     # --------------------------------------------------
 
     if not data.get("vendor"):
@@ -86,12 +95,14 @@ def validate_invoice(data):
     if date_value:
 
         try:
+
             datetime.strptime(
                 date_value,
                 "%Y-%m-%d"
             )
 
         except ValueError:
+
             errors.append(
                 "Date format is invalid"
             )
@@ -106,11 +117,16 @@ def validate_invoice(data):
     }
 
 
+# ======================================================
+# INVOICE EXTRACTION
+# ======================================================
+
 def extract_invoice_data(text):
     """
     Extract structured invoice information from OCR text.
 
     Returns:
+
         vendor
         invoiceNumber
         date
@@ -136,10 +152,11 @@ def extract_invoice_data(text):
     }
 
     # ==================================================
-    # NORMALIZE OCR TEXT
+    # EMPTY OCR TEXT
     # ==================================================
 
-    if not text:
+    if not text or not text.strip():
+
         data["missingFields"] = [
             "vendor",
             "invoiceNumber",
@@ -147,10 +164,17 @@ def extract_invoice_data(text):
             "amount"
         ]
 
-        data["validation"] = validate_invoice(data)
+        data["validation"] = validate_invoice(
+            data
+        )
 
         return data
 
+    # ==================================================
+    # NORMALIZE OCR TEXT
+    # ==================================================
+
+    text = text.replace("\r\n", "\n")
     text = text.replace("\r", "\n")
 
     # ==================================================
@@ -159,15 +183,23 @@ def extract_invoice_data(text):
 
     invoice_patterns = [
 
+        # Examples:
+        #
+        # Invoice #: 123456
         # Invoice #: (123456)
-        # Invoice #: INV-1023
         # Invoice No: INV-1023
         # Invoice Number: ABC123
         # Inv #: 12345
+        #
+        # IMPORTANT:
+        # We deliberately use [ \t] instead of \s
+        # so the regex cannot jump across lines.
 
         r"(?:invoice\s*(?:no|number)|invoice\s*#|inv\s*(?:no|number|#))"
-        r"\s*[:#\-|]*\s*"
-        r"[\(\[]?\s*([A-Z0-9][A-Z0-9\/\-_]*)\s*[\)\]]?"
+        r"[ \t]*[:#\-|]*[ \t]*"
+        r"[\(\[]?[ \t]*"
+        r"([A-Z0-9][A-Z0-9\/\-_]*)"
+        r"[ \t]*[\)\]]?"
     ]
 
     for pattern in invoice_patterns:
@@ -187,14 +219,20 @@ def extract_invoice_data(text):
                 "no",
                 "number",
                 "date",
-                "id"
+                "id",
+                "fax",
+                "phone",
+                "website",
+                "customer"
             }
 
             if (
                 len(candidate) >= 3
                 and candidate.lower() not in invalid_values
             ):
+
                 data["invoiceNumber"] = candidate
+
                 break
 
     # ==================================================
@@ -204,15 +242,14 @@ def extract_invoice_data(text):
     date_patterns = [
 
         # Invoice Date: 20/08/2026
-        # Date: 20-08-2026
+        # Invoice Date: 20-08-2026
+        # Date: 20/08/2026
 
         r"(?:invoice\s*date|date)"
-        r"\s*[:\-]?\s*"
+        r"[ \t]*[:\-]?[ \t]*"
         r"(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})",
 
-        # Fallback:
-        # 20/08/2026
-        # 20-08-2026
+        # Standalone date fallback
 
         r"\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})\b"
     ]
@@ -228,18 +265,26 @@ def extract_invoice_data(text):
         )
 
         if match:
+
             raw_date = match.group(1)
+
             break
 
     if raw_date:
 
         date_formats = [
+
             "%d/%m/%Y",
             "%d-%m-%Y",
+
             "%m/%d/%Y",
             "%m-%d-%Y",
+
             "%d/%m/%y",
-            "%d-%m-%y"
+            "%d-%m-%y",
+
+            "%m/%d/%y",
+            "%m-%d-%y"
         ]
 
         for fmt in date_formats:
@@ -258,6 +303,7 @@ def extract_invoice_data(text):
                 break
 
             except ValueError:
+
                 continue
 
     # ==================================================
@@ -269,9 +315,9 @@ def extract_invoice_data(text):
     gst_matches = re.findall(
 
         r"\b(?:GST|IGST|CGST|SGST)"
-        r"\s*[:\-]?\s*"
-        r"(?:₹|Rs\.?|INR)?"
-        r"\s*"
+        r"[ \t]*[:\-]?[ \t]*"
+        r"(?:₹|Rs\.?|INR|\$)?"
+        r"[ \t]*"
         r"(\d+(?:,\d{3})*(?:\.\d+)?)",
 
         text,
@@ -281,13 +327,21 @@ def extract_invoice_data(text):
 
     for value in gst_matches:
 
-        number = clean_number(value)
+        number = clean_number(
+            value
+        )
 
         if number is not None:
-            gst_values.append(number)
+
+            gst_values.append(
+                number
+            )
 
     if gst_values:
-        data["gst"] = sum(gst_values)
+
+        data["gst"] = sum(
+            gst_values
+        )
 
     # ==================================================
     # TOTAL AMOUNT
@@ -295,34 +349,42 @@ def extract_invoice_data(text):
 
     amount_patterns = [
 
-        r"(?:grand\s*total)"
-        r"\s*[:\-]?\s*"
-        r"(?:₹|Rs\.?|INR)?"
-        r"\s*"
+        # Grand Total
+        r"\bgrand\s*total\b"
+        r"[ \t]*[:\-]?[ \t]*"
+        r"(?:₹|Rs\.?|INR|\$)?"
+        r"[ \t]*"
         r"(\d+(?:,\d{3})*(?:\.\d+)?)",
 
-        r"(?:total\s*amount)"
-        r"\s*[:\-]?\s*"
-        r"(?:₹|Rs\.?|INR)?"
-        r"\s*"
+        # Total Amount
+        r"\btotal\s*amount\b"
+        r"[ \t]*[:\-]?[ \t]*"
+        r"(?:₹|Rs\.?|INR|\$)?"
+        r"[ \t]*"
         r"(\d+(?:,\d{3})*(?:\.\d+)?)",
 
-        r"(?:amount\s*payable)"
-        r"\s*[:\-]?\s*"
-        r"(?:₹|Rs\.?|INR)?"
-        r"\s*"
+        # Amount Payable
+        r"\bamount\s*payable\b"
+        r"[ \t]*[:\-]?[ \t]*"
+        r"(?:₹|Rs\.?|INR|\$)?"
+        r"[ \t]*"
         r"(\d+(?:,\d{3})*(?:\.\d+)?)",
 
-        r"(?:net\s*amount)"
-        r"\s*[:\-]?\s*"
-        r"(?:₹|Rs\.?|INR)?"
-        r"\s*"
+        # Net Amount
+        r"\bnet\s*amount\b"
+        r"[ \t]*[:\-]?[ \t]*"
+        r"(?:₹|Rs\.?|INR|\$)?"
+        r"[ \t]*"
         r"(\d+(?:,\d{3})*(?:\.\d+)?)",
 
-        r"(?:total)"
-        r"\s*[:\-]?\s*"
-        r"(?:₹|Rs\.?|INR)?"
-        r"\s*"
+        # Exact word "Total"
+        #
+        # \b prevents matching "Subtotal".
+
+        r"\btotal\b"
+        r"[ \t]*[:\-]?[ \t]*"
+        r"(?:₹|Rs\.?|INR|\$)?"
+        r"[ \t]*"
         r"(\d+(?:,\d{3})*(?:\.\d+)?)"
     ]
 
@@ -375,32 +437,92 @@ def extract_invoice_data(text):
             line
         ).strip().lower()
 
+        # ------------------------------------------------
+        # Skip common invoice headings
+        # ------------------------------------------------
+
         if normalized in ignored_vendor_lines:
+
             continue
+
+        # ------------------------------------------------
+        # If OCR gives:
+        #
+        # Company Name INVOICE
+        #
+        # keep only:
+        #
+        # Company Name
+        # ------------------------------------------------
+
+        if re.search(
+            r"\binvoice\b",
+            line,
+            re.IGNORECASE
+        ):
+
+            cleaned_vendor = re.sub(
+                r"\s*\binvoice\b.*$",
+                "",
+                line,
+                flags=re.IGNORECASE
+            ).strip()
+
+            if cleaned_vendor:
+
+                data["vendor"] = cleaned_vendor
+
+                break
+
+            continue
+
+        # ------------------------------------------------
+        # Skip invoice number lines
+        # ------------------------------------------------
 
         if re.search(
             r"invoice\s*(no|number|#)",
             line,
             re.IGNORECASE
         ):
+
             continue
+
+        # ------------------------------------------------
+        # Skip date lines
+        # ------------------------------------------------
 
         if re.search(
             r"\bdate\b",
             line,
             re.IGNORECASE
         ):
+
             continue
 
+        # ------------------------------------------------
+        # Skip placeholder lines
+        # ------------------------------------------------
+
         if "[" in line and "]" in line:
+
             continue
+
+        # ------------------------------------------------
+        # Skip address/contact lines
+        # ------------------------------------------------
 
         if re.search(
             r"\b(phone|fax|website|email|address)\b",
             line,
             re.IGNORECASE
         ):
+
             continue
+
+        # ------------------------------------------------
+        # Use this line as vendor
+        # ------------------------------------------------
 
         data["vendor"] = line
 
@@ -415,6 +537,7 @@ def extract_invoice_data(text):
     category_rules = {
 
         "Office Supplies": [
+
             "stationery",
             "office supplies",
             "printer",
@@ -426,6 +549,7 @@ def extract_invoice_data(text):
         ],
 
         "Software": [
+
             "software",
             "subscription",
             "saas",
@@ -436,6 +560,7 @@ def extract_invoice_data(text):
         ],
 
         "Travel": [
+
             "travel",
             "hotel",
             "flight",
@@ -446,6 +571,7 @@ def extract_invoice_data(text):
         ],
 
         "Food": [
+
             "food",
             "restaurant",
             "catering",
@@ -471,6 +597,7 @@ def extract_invoice_data(text):
     # ==================================================
 
     required_fields = [
+
         "vendor",
         "invoiceNumber",
         "date",
@@ -497,7 +624,7 @@ def extract_invoice_data(text):
 
 
 # ======================================================
-# TEST
+# LOCAL TEST
 # ======================================================
 
 if __name__ == "__main__":
@@ -514,7 +641,7 @@ if __name__ == "__main__":
     )
 
     # --------------------------------------------------
-    # EXISTING INVOICE
+    # EXISTING INVOICE IMAGE
     # --------------------------------------------------
 
     image_path = (
@@ -522,12 +649,16 @@ if __name__ == "__main__":
     )
 
     # --------------------------------------------------
-    # OCR
+    # OPEN IMAGE
     # --------------------------------------------------
 
     image = Image.open(
         image_path
     )
+
+    # --------------------------------------------------
+    # OCR
+    # --------------------------------------------------
 
     text = pytesseract.image_to_string(
         image
@@ -551,7 +682,7 @@ if __name__ == "__main__":
     )
 
     # --------------------------------------------------
-    # STRUCTURED JSON
+    # JSON
     # --------------------------------------------------
 
     print()
