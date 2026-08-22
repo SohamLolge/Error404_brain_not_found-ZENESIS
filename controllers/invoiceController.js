@@ -119,9 +119,55 @@ const updateInvoiceStatus = async (req, res) => {
   }
 };
 
+const getDashboard = async (req, res) => {
+  try {
+    const totalInvoices = await Invoice.countDocuments();
+
+    const pendingInvoices = await Invoice.countDocuments({
+      status: "Pending",
+    });
+
+    const approvedInvoices = await Invoice.countDocuments({
+      status: "Approved",
+    });
+
+    const rejectedInvoices = await Invoice.countDocuments({
+      status: "Rejected",
+    });
+
+    const amountResult = await Invoice.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    const totalAmount =
+      amountResult.length > 0 ? amountResult[0].totalAmount : 0;
+
+    res.status(200).json({
+      totalInvoices,
+      pendingInvoices,
+      approvedInvoices,
+      rejectedInvoices,
+      totalAmount,
+    });
+  } catch (error) {
+    console.error("Dashboard error:", error.message);
+
+    res.status(500).json({
+      message: "Failed to fetch dashboard data",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createInvoice,
   getInvoices,
   getInvoiceById,
   updateInvoiceStatus,
+  getDashboard,
 };
