@@ -63,15 +63,24 @@ function InvoiceDetails() {
   const invoice = invoices[id] || invoices["INV-1001"];
 
   const getStatusClass = (status) => {
-    if (status === "Approved") return "status-approved";
-    if (status === "Pending") return "status-pending";
-    if (status === "Rejected") return "status-rejected";
+    if (status === "Approved") {
+      return "status-approved";
+    }
+
+    if (status === "Pending") {
+      return "status-pending";
+    }
+
+    if (status === "Rejected") {
+      return "status-rejected";
+    }
+
     return "";
   };
 
   return (
     <div className="page">
-      {/* PAGE HEADER */}
+
       <div className="page-header">
         <div>
           <h1>Invoice Details</h1>
@@ -86,7 +95,7 @@ function InvoiceDetails() {
       </div>
 
       <div className="invoice-details-grid">
-        {/* INVOICE INFORMATION */}
+
         <section className="details-card">
           <div className="card-header">
             <div>
@@ -102,6 +111,7 @@ function InvoiceDetails() {
           </div>
 
           <div className="details-list">
+
             <div className="detail-row">
               <span>Invoice Number</span>
               <strong>{invoice.invoiceNumber}</strong>
@@ -126,11 +136,13 @@ function InvoiceDetails() {
               <span>Total Amount</span>
               <strong>{invoice.amount}</strong>
             </div>
+
           </div>
         </section>
 
-        {/* AMOUNT BREAKDOWN */}
+
         <section className="details-card">
+
           <div className="card-header">
             <div>
               <h2>Amount Breakdown</h2>
@@ -139,6 +151,7 @@ function InvoiceDetails() {
           </div>
 
           <div className="details-list">
+
             <div className="detail-row">
               <span>Subtotal</span>
               <strong>{invoice.subtotal}</strong>
@@ -153,11 +166,13 @@ function InvoiceDetails() {
               <span>Total</span>
               <strong>{invoice.amount}</strong>
             </div>
+
           </div>
         </section>
 
-        {/* VALIDATION */}
+
         <section className="details-card">
+
           <div className="card-header">
             <div>
               <h2>Validation</h2>
@@ -170,6 +185,7 @@ function InvoiceDetails() {
           </div>
 
           <div className="validation-list">
+
             <div className="validation-item">
               <span>✓</span>
 
@@ -180,6 +196,7 @@ function InvoiceDetails() {
                 </p>
               </div>
             </div>
+
 
             <div className="validation-item">
               <span>✓</span>
@@ -192,6 +209,7 @@ function InvoiceDetails() {
               </div>
             </div>
 
+
             <div className="validation-item">
               <span>✓</span>
 
@@ -203,6 +221,7 @@ function InvoiceDetails() {
               </div>
             </div>
 
+
             <div className="validation-item">
               <span>✓</span>
 
@@ -213,11 +232,13 @@ function InvoiceDetails() {
                 </p>
               </div>
             </div>
+
           </div>
         </section>
 
-        {/* APPROVAL */}
+
         <section className="details-card">
+
           <div className="card-header">
             <div>
               <h2>Approval</h2>
@@ -225,12 +246,15 @@ function InvoiceDetails() {
             </div>
           </div>
 
+
           <div className="approval-box">
+
             <div
               className={`large-status ${getStatusClass(invoice.status)}`}
             >
               {invoice.status}
             </div>
+
 
             {invoice.status === "Approved" && (
               <p>
@@ -238,20 +262,25 @@ function InvoiceDetails() {
               </p>
             )}
 
+
             {invoice.status === "Pending" && (
               <p>
                 This invoice is waiting for approval.
               </p>
             )}
 
+
             {invoice.status === "Rejected" && (
               <p>
                 This invoice has been rejected and requires review.
               </p>
             )}
+
           </div>
 
+
           <div className="approval-actions">
+
             {invoice.status === "Pending" && (
               <>
                 <button className="approve-button">
@@ -264,14 +293,18 @@ function InvoiceDetails() {
               </>
             )}
 
+
             <Link
               to="/invoices"
               className="secondary-button"
             >
               View All Invoices
             </Link>
+
           </div>
+
         </section>
+
       </div>
     </div>
   );
