@@ -1,17 +1,29 @@
+require("dotenv").config();
+
 const express = require("express");
+const connectDB = require("./config/db");
 
 const app = express();
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
+// Middleware
 app.use(express.json());
 
+// Test route
 app.get("/", (req, res) => {
   res.json({
     message: "AI Expense Copilot Backend is running 🚀"
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+// Start server only after MongoDB connects
+const startServer = async () => {
+  await connectDB();
+
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+};
+
+startServer();
